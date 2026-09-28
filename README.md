@@ -74,3 +74,17 @@ npm run dev
   `backend/app/routers/<模块>.py`，业务规则在 `backend/app/services/<模块>.py`。
 - 列表接口统一返回 `{ items, total, page, size }`，动作接口统一返回 `{ ok, message }`。
 - 状态流转只允许在 `app/services` 里改，路由层不做业务判断。
+
+## 排水清疏：淤积变化剖面
+
+清疏任务可逐条查看「淤积变化剖面」，比较前后两次测量，按清疏编号、清疏管段、
+淤积程度、清疏方式四个维度对照。趋势、列表结论、验收结论三处共用
+`backend/app/profile.py` 里 `build_profile()` 的同一份计算结果，避免各算一套：
+
+- 接口：`GET /api/drainage/{id}/profile`；复查验收 `POST /api/drainage/{id}/actions`
+  的结果也由该剖面驱动并回写任务状态。
+- 相邻两次测量命中任一条件即判**不可比**，并在曲线上用虚线标出区间：
+  缺历史值（值/单位/时间缺失）、单位不一致（不做跨单位换算）、
+  连续测量断档（间隔超过 45 天，阈值见 `profile.MAX_MEASURE_GAP_DAYS`）。
+- 同单位且连续时按前后值给三档趋势：淤积减轻、基本持平（10% 相对带宽 + 单位死区）、
+  淤积加重；复查验收据此给「验收通过 / 验收不通过 / 暂缓验收」。

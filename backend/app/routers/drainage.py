@@ -23,11 +23,27 @@ def list_entries(
     page: int = 1,
     size: int = 20,
 ) -> PageResult[dict]:
-    """按清疏编号与状态过滤排水清疏列表；没有数据时返回空页，不报错。"""
+    """按清疏编号与状态过滤排水清疏列表；列表行附带与验收同源的淤积变化结论。"""
     if size > 200:
         raise HTTPException(status_code=400, detail="每页最多 200 条，请缩小分页范围")
     items, total = service.list_entries(keyword=keyword, status=status, page=page, size=size)
     return PageResult(items=items, total=total, page=page, size=size)
+
+
+@router.get("/export")
+def export_entries() -> dict[str, Any]:
+    """导出排水清疏清单：返回当前全部任务（含测量点，不含计算字段）。"""
+    items, total = service.list_entries(page=1, size=10000, with_summary=False)
+    return {"module": "drainage", "total": total, "items": items}
+
+
+@router.get("/{entry_id}/profile", response_model=dict)
+def get_profile(entry_id: int) -> dict:
+    """淤积变化剖面：趋势点、不可比区间、前后两次结论、验收结论同源于一份计算结果。"""
+    profile = service.get_profile(entry_id)
+    if profile is None:
+        raise HTTPException(status_code=404, detail=f"清疏任务 {entry_id} 不存在或已归档")
+    return profile
 
 
 @router.get("/{entry_id}", response_model=dict)
@@ -56,10 +72,3 @@ def run_action(entry_id: int, payload: EntryPayload) -> ActionResult:
     if entry is None:
         return ActionResult(ok=False, message=message)
     return ActionResult(ok=True, message=message, entry=entry)
-
-
-@router.get("/export")
-def export_entries() -> dict[str, Any]:
-    """导出排水清疏清单：返回当前过滤条件下的全量数据。"""
-    items, total = service.list_entries(page=1, size=10000)
-    return {"module": "drainage", "total": total, "items": items}
